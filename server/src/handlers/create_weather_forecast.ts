@@ -1,4 +1,28 @@
 
+import { db } from '../db';
+import { weatherForecastsTable } from '../db/schema';
 import { type CreateWeatherForecastInput, type WeatherForecast } from '../schema';
 
-export declare function createWeatherForecast(input: CreateWeatherForecastInput): Promise<WeatherForecast>;
+export const createWeatherForecast = async (input: CreateWeatherForecastInput): Promise<WeatherForecast> => {
+  try {
+    // Insert weather forecast record
+    const result = await db.insert(weatherForecastsTable)
+      .values({
+        city: input.city,
+        date: input.date,
+        temperature_high: input.temperature_high,
+        temperature_low: input.temperature_low,
+        condition: input.condition,
+        description: input.description,
+        humidity: input.humidity,
+        wind_speed: input.wind_speed
+      })
+      .returning()
+      .execute();
+
+    return result[0];
+  } catch (error) {
+    console.error('Weather forecast creation failed:', error);
+    throw error;
+  }
+};
