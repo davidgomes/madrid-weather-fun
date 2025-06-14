@@ -6,23 +6,26 @@ import { eq } from 'drizzle-orm';
 
 export const updateWeatherForecast = async (input: UpdateWeatherForecastInput): Promise<WeatherForecast> => {
   try {
-    // Build the update data object, excluding the id and only including defined fields
+    // Extract id and build update data
     const { id, ...updateData } = input;
     
-    // Filter out undefined values to only update provided fields
-    const fieldsToUpdate = Object.fromEntries(
-      Object.entries(updateData).filter(([_, value]) => value !== undefined)
-    );
-
+    // Only include fields that are defined in the update
+    const fieldsToUpdate: any = {};
+    if (updateData.city !== undefined) fieldsToUpdate.city = updateData.city;
+    if (updateData.date !== undefined) fieldsToUpdate.date = updateData.date;
+    if (updateData.temperature_high !== undefined) fieldsToUpdate.temperature_high = updateData.temperature_high;
+    if (updateData.temperature_low !== undefined) fieldsToUpdate.temperature_low = updateData.temperature_low;
+    if (updateData.condition !== undefined) fieldsToUpdate.condition = updateData.condition;
+    if (updateData.description !== undefined) fieldsToUpdate.description = updateData.description;
+    if (updateData.humidity !== undefined) fieldsToUpdate.humidity = updateData.humidity;
+    if (updateData.wind_speed !== undefined) fieldsToUpdate.wind_speed = updateData.wind_speed;
+    
     // Add updated_at timestamp
-    const updateValues = {
-      ...fieldsToUpdate,
-      updated_at: new Date()
-    };
+    fieldsToUpdate.updated_at = new Date();
 
     // Update the weather forecast record
     const result = await db.update(weatherForecastsTable)
-      .set(updateValues)
+      .set(fieldsToUpdate)
       .where(eq(weatherForecastsTable.id, id))
       .returning()
       .execute();

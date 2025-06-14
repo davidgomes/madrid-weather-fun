@@ -1,8 +1,8 @@
 
 import { db } from '../db';
 import { weatherForecastsTable } from '../db/schema';
-import { eq } from 'drizzle-orm';
 import { type WeatherForecast } from '../schema';
+import { eq } from 'drizzle-orm';
 
 export const getMadridWeather = async (): Promise<WeatherForecast[]> => {
   try {
@@ -11,7 +11,7 @@ export const getMadridWeather = async (): Promise<WeatherForecast[]> => {
       .where(eq(weatherForecastsTable.city, 'Madrid'))
       .execute();
 
-    // No numeric conversions needed as all fields are integers or other types
+    // No numeric conversions needed - all numeric fields are integers in this schema
     return results;
   } catch (error) {
     console.error('Failed to get Madrid weather:', error);

@@ -2,35 +2,42 @@
 import { db } from '../db';
 import { weatherForecastsTable } from '../db/schema';
 import { type GetWeatherForecastsInput, type WeatherForecast } from '../schema';
-import { eq, gte, and } from 'drizzle-orm';
+import { eq, gte, lte, and, asc } from 'drizzle-orm';
 
-export const getWeatherForecasts = async (input: GetWeatherForecastsInput = { days: 7 }): Promise<WeatherForecast[]> => {
+export const getWeatherForecasts = async (input: GetWeatherForecastsInput): Promise<WeatherForecast[]> => {
   try {
-    // Filter for future dates (today and forward)
+    // Filter by date range - get forecasts from today onwards for the specified number of days
     const today = new Date();
-    today.setHours(0, 0, 0, 0); // Start of day
+    today.setHours(0, 0, 0, 0); // Start of today
+    
+    const endDate = new Date(today);
+    endDate.setDate(today.getDate() + input.days); // Use input.days (guaranteed to exist due to Zod default)
 
-    // Build the query based on whether city filter is provided
-    const results = input.city
-      ? await db.select()
-          .from(weatherForecastsTable)
-          .where(and(
-            eq(weatherForecastsTable.city, input.city),
-            gte(weatherForecastsTable.date, today)
-          ))
-          .orderBy(weatherForecastsTable.date)
-          .limit(input.days)
-          .execute()
-      : await db.select()
-          .from(weatherForecastsTable)
-          .where(gte(weatherForecastsTable.date, today))
-          .orderBy(weatherForecastsTable.date)
-          .limit(input.days)
-          .execute();
+    // Build the where conditions
+    const dateConditions = [
+      gte(weatherForecastsTable.date, today),
+      lte(weatherForecastsTable.date, endDate)
+    ];
 
+    // Build final query with conditional city filter
+    const query = input.city 
+      ? db.select()
+          .from(weatherForecastsTable)
+          .where(and(eq(weatherForecastsTable.city, input.city), ...dateConditions))
+          .orderBy(asc(weatherForecastsTable.date))
+          .limit(input.days)
+      : db.select()
+          .from(weatherForecastsTable)
+          .where(and(...dateConditions))
+          .orderBy(asc(weatherForecastsTable.date))
+          .limit(input.days);
+
+    const results = await query.execute();
+
+    // Return results - no numeric conversions needed as all fields are integers or already proper types
     return results;
   } catch (error) {
-    console.error('Weather forecasts retrieval failed:', error);
+    console.error('Get weather forecasts failed:', error);
     throw error;
   }
 };

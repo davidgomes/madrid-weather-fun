@@ -20,7 +20,8 @@ export const createWeatherForecast = async (input: CreateWeatherForecastInput): 
       .returning()
       .execute();
 
-    return result[0];
+    const weatherForecast = result[0];
+    return weatherForecast;
   } catch (error) {
     console.error('Weather forecast creation failed:', error);
     throw error;

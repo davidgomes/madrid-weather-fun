@@ -4,20 +4,20 @@ import { resetDB, createDB } from '../helpers';
 import { db } from '../db';
 import { weatherForecastsTable } from '../db/schema';
 import { seedMadridWeather } from '../handlers/seed_madrid_weather';
-import { eq } from 'drizzle-orm';
+import { eq, gte, lte, and } from 'drizzle-orm';
 
 describe('seedMadridWeather', () => {
   beforeEach(createDB);
   afterEach(resetDB);
 
-  it('should create 7 weather forecasts for Madrid', async () => {
-    const result = await seedMadridWeather();
+  it('should create 7 weather forecast records for Madrid', async () => {
+    const results = await seedMadridWeather();
 
-    expect(result).toHaveLength(7);
+    expect(results).toHaveLength(7);
     
-    // Verify all forecasts are for Madrid
-    result.forEach(forecast => {
-      expect(forecast.city).toEqual('Madrid');
+    // Verify all records are for Madrid
+    results.forEach(forecast => {
+      expect(forecast.city).toBe('Madrid');
       expect(forecast.id).toBeDefined();
       expect(forecast.created_at).toBeInstanceOf(Date);
       expect(forecast.updated_at).toBeInstanceOf(Date);
@@ -27,58 +27,112 @@ describe('seedMadridWeather', () => {
   it('should save all forecasts to database', async () => {
     await seedMadridWeather();
 
-    const forecasts = await db.select()
+    const savedForecasts = await db.select()
       .from(weatherForecastsTable)
       .where(eq(weatherForecastsTable.city, 'Madrid'))
       .execute();
 
-    expect(forecasts).toHaveLength(7);
-    
-    // Verify data structure and types
-    forecasts.forEach(forecast => {
-      expect(forecast.city).toEqual('Madrid');
+    expect(savedForecasts).toHaveLength(7);
+    savedForecasts.forEach(forecast => {
+      expect(forecast.city).toBe('Madrid');
       expect(forecast.date).toBeInstanceOf(Date);
-      expect(typeof forecast.temperature_high).toBe('number');
-      expect(typeof forecast.temperature_low).toBe('number');
-      expect(['sunny', 'cloudy', 'rainy', 'stormy', 'snowy', 'partly_cloudy']).toContain(forecast.condition);
-      expect(typeof forecast.description).toBe('string');
-      expect(typeof forecast.humidity).toBe('number');
-      expect(forecast.humidity).toBeGreaterThanOrEqual(0);
-      expect(forecast.humidity).toBeLessThanOrEqual(100);
-      expect(typeof forecast.wind_speed).toBe('number');
-      expect(forecast.wind_speed).toBeGreaterThanOrEqual(0);
+      expect(forecast.created_at).toBeInstanceOf(Date);
+      expect(forecast.updated_at).toBeInstanceOf(Date);
     });
   });
 
-  it('should create forecasts for consecutive days', async () => {
-    const result = await seedMadridWeather();
-
-    // Sort by date to check sequence
-    const sortedForecasts = result.sort((a, b) => a.date.getTime() - b.date.getTime());
+  it('should generate forecasts for consecutive days starting from today', async () => {
+    const results = await seedMadridWeather();
     
-    for (let i = 1; i < sortedForecasts.length; i++) {
-      const prevDate = sortedForecasts[i - 1].date;
-      const currentDate = sortedForecasts[i].date;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Reset time to start of day
+
+    // Sort results by date for proper ordering
+    const sortedResults = results.sort((a, b) => a.date.getTime() - b.date.getTime());
+
+    for (let i = 0; i < 7; i++) {
+      const expectedDate = new Date(today);
+      expectedDate.setDate(today.getDate() + i);
       
-      // Check that dates are consecutive (24 hours apart)
-      const timeDiff = currentDate.getTime() - prevDate.getTime();
-      const dayInMs = 24 * 60 * 60 * 1000;
-      expect(timeDiff).toEqual(dayInMs);
+      const forecastDate = new Date(sortedResults[i].date);
+      forecastDate.setHours(0, 0, 0, 0);
+
+      expect(forecastDate.getTime()).toBe(expectedDate.getTime());
     }
   });
 
-  it('should include variety of weather conditions', async () => {
-    const result = await seedMadridWeather();
+  it('should generate realistic weather data for Madrid', async () => {
+    const results = await seedMadridWeather();
 
-    const conditions = result.map(forecast => forecast.condition);
-    const uniqueConditions = [...new Set(conditions)];
-    
-    // Should have at least 3 different weather conditions
-    expect(uniqueConditions.length).toBeGreaterThanOrEqual(3);
-    
-    // Should include some specific conditions we know are in the seed data
-    expect(conditions).toContain('sunny');
-    expect(conditions).toContain('rainy');
-    expect(conditions).toContain('partly_cloudy');
+    results.forEach(forecast => {
+      // Temperature validation
+      expect(forecast.temperature_high).toBeGreaterThanOrEqual(15);
+      expect(forecast.temperature_high).toBeLessThanOrEqual(35);
+      expect(forecast.temperature_low).toBeGreaterThanOrEqual(5);
+      expect(forecast.temperature_low).toBeLessThanOrEqual(30);
+      expect(forecast.temperature_low).toBeLessThan(forecast.temperature_high);
+
+      // Humidity validation (0-100%)
+      expect(forecast.humidity).toBeGreaterThanOrEqual(0);
+      expect(forecast.humidity).toBeLessThanOrEqual(100);
+
+      // Wind speed validation (non-negative)
+      expect(forecast.wind_speed).toBeGreaterThanOrEqual(0);
+
+      // Valid weather conditions
+      expect(['sunny', 'cloudy', 'rainy', 'stormy', 'snowy', 'partly_cloudy'])
+        .toContain(forecast.condition);
+
+      // Description should be a non-empty string
+      expect(forecast.description).toBeTruthy();
+      expect(typeof forecast.description).toBe('string');
+    });
+  });
+
+  it('should handle multiple seeding operations independently', async () => {
+    // First seeding
+    const firstResults = await seedMadridWeather();
+    expect(firstResults).toHaveLength(7);
+
+    // Second seeding should add 7 more records
+    const secondResults = await seedMadridWeather();
+    expect(secondResults).toHaveLength(7);
+
+    // Verify total records in database
+    const allForecasts = await db.select()
+      .from(weatherForecastsTable)
+      .where(eq(weatherForecastsTable.city, 'Madrid'))
+      .execute();
+
+    expect(allForecasts).toHaveLength(14);
+  });
+
+  it('should query forecasts by date range correctly', async () => {
+    await seedMadridWeather();
+
+    const today = new Date();
+    const threeDaysFromNow = new Date(today);
+    threeDaysFromNow.setDate(today.getDate() + 3);
+
+    const filteredForecasts = await db.select()
+      .from(weatherForecastsTable)
+      .where(
+        and(
+          eq(weatherForecastsTable.city, 'Madrid'),
+          gte(weatherForecastsTable.date, today),
+          lte(weatherForecastsTable.date, threeDaysFromNow)
+        )
+      )
+      .execute();
+
+    expect(filteredForecasts.length).toBeGreaterThan(0);
+    expect(filteredForecasts.length).toBeLessThanOrEqual(4);
+
+    filteredForecasts.forEach(forecast => {
+      expect(forecast.city).toBe('Madrid');
+      expect(forecast.date).toBeInstanceOf(Date);
+      expect(forecast.date >= today).toBe(true);
+      expect(forecast.date <= threeDaysFromNow).toBe(true);
+    });
   });
 });

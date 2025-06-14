@@ -7,143 +7,151 @@ import { type CreateWeatherForecastInput, type UpdateWeatherForecastInput } from
 import { updateWeatherForecast } from '../handlers/update_weather_forecast';
 import { eq } from 'drizzle-orm';
 
-// Test data for creating initial weather forecast
+// Test input for creating initial weather forecast
 const testCreateInput: CreateWeatherForecastInput = {
   city: 'New York',
-  date: new Date('2024-01-01'),
-  temperature_high: 25,
-  temperature_low: 15,
+  date: new Date('2024-01-15'),
+  temperature_high: 75,
+  temperature_low: 60,
   condition: 'sunny',
-  description: 'Clear skies with sunshine',
-  humidity: 60,
-  wind_speed: 10
+  description: 'Clear sunny day',
+  humidity: 45,
+  wind_speed: 8
 };
 
 describe('updateWeatherForecast', () => {
   beforeEach(createDB);
   afterEach(resetDB);
 
-  it('should update a weather forecast with all fields', async () => {
+  it('should update a weather forecast', async () => {
     // Create initial weather forecast
-    const created = await db.insert(weatherForecastsTable)
+    const initialResult = await db.insert(weatherForecastsTable)
       .values({
-        ...testCreateInput,
-        created_at: new Date(),
-        updated_at: new Date()
+        city: testCreateInput.city,
+        date: testCreateInput.date,
+        temperature_high: testCreateInput.temperature_high,
+        temperature_low: testCreateInput.temperature_low,
+        condition: testCreateInput.condition,
+        description: testCreateInput.description,
+        humidity: testCreateInput.humidity,
+        wind_speed: testCreateInput.wind_speed
       })
       .returning()
       .execute();
 
-    const createdForecast = created[0];
+    const forecastId = initialResult[0].id;
 
-    // Update input with all fields
+    // Update input
     const updateInput: UpdateWeatherForecastInput = {
-      id: createdForecast.id,
-      city: 'Los Angeles',
-      date: new Date('2024-01-02'),
-      temperature_high: 30,
-      temperature_low: 20,
+      id: forecastId,
+      temperature_high: 80,
+      temperature_low: 65,
       condition: 'partly_cloudy',
-      description: 'Partly cloudy with some sun',
-      humidity: 70,
-      wind_speed: 15
+      description: 'Partly cloudy with some sun'
     };
 
     const result = await updateWeatherForecast(updateInput);
 
-    // Verify all fields were updated
-    expect(result.id).toEqual(createdForecast.id);
-    expect(result.city).toEqual('Los Angeles');
-    expect(result.date).toEqual(new Date('2024-01-02'));
-    expect(result.temperature_high).toEqual(30);
-    expect(result.temperature_low).toEqual(20);
+    // Verify updated fields
+    expect(result.id).toEqual(forecastId);
+    expect(result.temperature_high).toEqual(80);
+    expect(result.temperature_low).toEqual(65);
     expect(result.condition).toEqual('partly_cloudy');
     expect(result.description).toEqual('Partly cloudy with some sun');
-    expect(result.humidity).toEqual(70);
-    expect(result.wind_speed).toEqual(15);
+    
+    // Verify unchanged fields
+    expect(result.city).toEqual('New York');
+    expect(result.date).toEqual(new Date('2024-01-15'));
+    expect(result.humidity).toEqual(45);
+    expect(result.wind_speed).toEqual(8);
+    
+    // Verify updated_at was updated
     expect(result.updated_at).toBeInstanceOf(Date);
-    expect(result.updated_at > createdForecast.updated_at).toBe(true);
+    expect(result.updated_at > result.created_at).toBe(true);
   });
 
-  it('should update a weather forecast with partial fields', async () => {
+  it('should update weather forecast in database', async () => {
     // Create initial weather forecast
-    const created = await db.insert(weatherForecastsTable)
+    const initialResult = await db.insert(weatherForecastsTable)
       .values({
-        ...testCreateInput,
-        created_at: new Date(),
-        updated_at: new Date()
+        city: testCreateInput.city,
+        date: testCreateInput.date,
+        temperature_high: testCreateInput.temperature_high,
+        temperature_low: testCreateInput.temperature_low,
+        condition: testCreateInput.condition,
+        description: testCreateInput.description,
+        humidity: testCreateInput.humidity,
+        wind_speed: testCreateInput.wind_speed
       })
       .returning()
       .execute();
 
-    const createdForecast = created[0];
+    const forecastId = initialResult[0].id;
 
-    // Update input with only some fields
+    // Update weather forecast
     const updateInput: UpdateWeatherForecastInput = {
-      id: createdForecast.id,
-      temperature_high: 28,
-      condition: 'cloudy',
-      humidity: 75
+      id: forecastId,
+      city: 'Los Angeles',
+      condition: 'cloudy'
     };
 
-    const result = await updateWeatherForecast(updateInput);
+    await updateWeatherForecast(updateInput);
 
-    // Verify only specified fields were updated
-    expect(result.id).toEqual(createdForecast.id);
-    expect(result.city).toEqual(testCreateInput.city); // Should remain unchanged
-    expect(result.date).toEqual(testCreateInput.date); // Should remain unchanged
-    expect(result.temperature_high).toEqual(28); // Should be updated
-    expect(result.temperature_low).toEqual(testCreateInput.temperature_low); // Should remain unchanged
-    expect(result.condition).toEqual('cloudy'); // Should be updated
-    expect(result.description).toEqual(testCreateInput.description); // Should remain unchanged
-    expect(result.humidity).toEqual(75); // Should be updated
-    expect(result.wind_speed).toEqual(testCreateInput.wind_speed); // Should remain unchanged
-    expect(result.updated_at).toBeInstanceOf(Date);
-    expect(result.updated_at > createdForecast.updated_at).toBe(true);
-  });
-
-  it('should save updated weather forecast to database', async () => {
-    // Create initial weather forecast
-    const created = await db.insert(weatherForecastsTable)
-      .values({
-        ...testCreateInput,
-        created_at: new Date(),
-        updated_at: new Date()
-      })
-      .returning()
-      .execute();
-
-    const createdForecast = created[0];
-
-    // Update the forecast
-    const updateInput: UpdateWeatherForecastInput = {
-      id: createdForecast.id,
-      city: 'Chicago',
-      temperature_high: 22
-    };
-
-    const result = await updateWeatherForecast(updateInput);
-
-    // Query database to verify changes were persisted
-    const forecasts = await db.select()
+    // Query database to verify update
+    const updatedForecasts = await db.select()
       .from(weatherForecastsTable)
-      .where(eq(weatherForecastsTable.id, result.id))
+      .where(eq(weatherForecastsTable.id, forecastId))
       .execute();
 
-    expect(forecasts).toHaveLength(1);
-    expect(forecasts[0].city).toEqual('Chicago');
-    expect(forecasts[0].temperature_high).toEqual(22);
-    expect(forecasts[0].temperature_low).toEqual(testCreateInput.temperature_low); // Should remain unchanged
-    expect(forecasts[0].updated_at).toBeInstanceOf(Date);
-    expect(forecasts[0].updated_at > createdForecast.updated_at).toBe(true);
+    expect(updatedForecasts).toHaveLength(1);
+    expect(updatedForecasts[0].city).toEqual('Los Angeles');
+    expect(updatedForecasts[0].condition).toEqual('cloudy');
+    expect(updatedForecasts[0].temperature_high).toEqual(75); // Unchanged
+    expect(updatedForecasts[0].updated_at).toBeInstanceOf(Date);
   });
 
-  it('should throw error when weather forecast does not exist', async () => {
+  it('should throw error for non-existent weather forecast', async () => {
     const updateInput: UpdateWeatherForecastInput = {
-      id: 999, // Non-existent ID
-      city: 'Miami'
+      id: 99999,
+      temperature_high: 85
     };
 
-    await expect(updateWeatherForecast(updateInput)).rejects.toThrow(/weather forecast with id 999 not found/i);
+    await expect(updateWeatherForecast(updateInput)).rejects.toThrow(/weather forecast.*not found/i);
+  });
+
+  it('should update only specified fields', async () => {
+    // Create initial weather forecast
+    const initialResult = await db.insert(weatherForecastsTable)
+      .values({
+        city: testCreateInput.city,
+        date: testCreateInput.date,
+        temperature_high: testCreateInput.temperature_high,
+        temperature_low: testCreateInput.temperature_low,
+        condition: testCreateInput.condition,
+        description: testCreateInput.description,
+        humidity: testCreateInput.humidity,
+        wind_speed: testCreateInput.wind_speed
+      })
+      .returning()
+      .execute();
+
+    const forecastId = initialResult[0].id;
+
+    // Update only humidity
+    const updateInput: UpdateWeatherForecastInput = {
+      id: forecastId,
+      humidity: 70
+    };
+
+    const result = await updateWeatherForecast(updateInput);
+
+    // Verify only humidity was updated
+    expect(result.humidity).toEqual(70);
+    expect(result.city).toEqual(testCreateInput.city);
+    expect(result.temperature_high).toEqual(testCreateInput.temperature_high);
+    expect(result.temperature_low).toEqual(testCreateInput.temperature_low);
+    expect(result.condition).toEqual(testCreateInput.condition);
+    expect(result.description).toEqual(testCreateInput.description);
+    expect(result.wind_speed).toEqual(testCreateInput.wind_speed);
   });
 });

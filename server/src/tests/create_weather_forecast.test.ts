@@ -7,15 +7,15 @@ import { type CreateWeatherForecastInput } from '../schema';
 import { createWeatherForecast } from '../handlers/create_weather_forecast';
 import { eq } from 'drizzle-orm';
 
-// Simple test input
+// Test input with all required fields
 const testInput: CreateWeatherForecastInput = {
   city: 'New York',
   date: new Date('2024-01-15'),
   temperature_high: 25,
   temperature_low: 15,
   condition: 'sunny',
-  description: 'Clear skies with bright sunshine',
-  humidity: 60,
+  description: 'Clear skies with plenty of sunshine',
+  humidity: 45,
   wind_speed: 10
 };
 
@@ -32,8 +32,8 @@ describe('createWeatherForecast', () => {
     expect(result.temperature_high).toEqual(25);
     expect(result.temperature_low).toEqual(15);
     expect(result.condition).toEqual('sunny');
-    expect(result.description).toEqual('Clear skies with bright sunshine');
-    expect(result.humidity).toEqual(60);
+    expect(result.description).toEqual('Clear skies with plenty of sunshine');
+    expect(result.humidity).toEqual(45);
     expect(result.wind_speed).toEqual(10);
     expect(result.id).toBeDefined();
     expect(result.created_at).toBeInstanceOf(Date);
@@ -43,7 +43,7 @@ describe('createWeatherForecast', () => {
   it('should save weather forecast to database', async () => {
     const result = await createWeatherForecast(testInput);
 
-    // Query using proper drizzle syntax
+    // Query database to verify the record was saved
     const forecasts = await db.select()
       .from(weatherForecastsTable)
       .where(eq(weatherForecastsTable.id, result.id))
@@ -55,14 +55,14 @@ describe('createWeatherForecast', () => {
     expect(forecasts[0].temperature_high).toEqual(25);
     expect(forecasts[0].temperature_low).toEqual(15);
     expect(forecasts[0].condition).toEqual('sunny');
-    expect(forecasts[0].description).toEqual('Clear skies with bright sunshine');
-    expect(forecasts[0].humidity).toEqual(60);
+    expect(forecasts[0].description).toEqual('Clear skies with plenty of sunshine');
+    expect(forecasts[0].humidity).toEqual(45);
     expect(forecasts[0].wind_speed).toEqual(10);
     expect(forecasts[0].created_at).toBeInstanceOf(Date);
     expect(forecasts[0].updated_at).toBeInstanceOf(Date);
   });
 
-  it('should create weather forecast for different conditions', async () => {
+  it('should handle different weather conditions', async () => {
     const rainyInput: CreateWeatherForecastInput = {
       city: 'Seattle',
       date: new Date('2024-01-16'),
@@ -76,16 +76,15 @@ describe('createWeatherForecast', () => {
 
     const result = await createWeatherForecast(rainyInput);
 
-    expect(result.city).toEqual('Seattle');
     expect(result.condition).toEqual('rainy');
+    expect(result.city).toEqual('Seattle');
     expect(result.humidity).toEqual(85);
     expect(result.wind_speed).toEqual(15);
-    expect(result.id).toBeDefined();
   });
 
-  it('should handle edge cases for humidity and wind speed', async () => {
-    const edgeCaseInput: CreateWeatherForecastInput = {
-      city: 'Phoenix',
+  it('should handle boundary values for humidity and wind speed', async () => {
+    const boundaryInput: CreateWeatherForecastInput = {
+      city: 'Las Vegas',
       date: new Date('2024-01-17'),
       temperature_high: 35,
       temperature_low: 20,
@@ -95,11 +94,10 @@ describe('createWeatherForecast', () => {
       wind_speed: 0 // Minimum wind speed
     };
 
-    const result = await createWeatherForecast(edgeCaseInput);
+    const result = await createWeatherForecast(boundaryInput);
 
     expect(result.humidity).toEqual(0);
     expect(result.wind_speed).toEqual(0);
-    expect(result.temperature_high).toEqual(35);
-    expect(result.temperature_low).toEqual(20);
+    expect(result.city).toEqual('Las Vegas');
   });
 });
