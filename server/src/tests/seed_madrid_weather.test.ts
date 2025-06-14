@@ -1,4 +1,3 @@
-
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { resetDB, createDB } from '../helpers';
 import { db } from '../db';
@@ -89,22 +88,22 @@ describe('seedMadridWeather', () => {
     });
   });
 
-  it('should handle multiple seeding operations independently', async () => {
+  it('should clear existing Madrid data before inserting new data', async () => {
     // First seeding
     const firstResults = await seedMadridWeather();
     expect(firstResults).toHaveLength(7);
 
-    // Second seeding should add 7 more records
+    // Second seeding should replace the data, not add to it
     const secondResults = await seedMadridWeather();
     expect(secondResults).toHaveLength(7);
 
-    // Verify total records in database
+    // Verify total records in database is still 7
     const allForecasts = await db.select()
       .from(weatherForecastsTable)
       .where(eq(weatherForecastsTable.city, 'Madrid'))
       .execute();
 
-    expect(allForecasts).toHaveLength(14);
+    expect(allForecasts).toHaveLength(7);
   });
 
   it('should query forecasts by date range correctly', async () => {
